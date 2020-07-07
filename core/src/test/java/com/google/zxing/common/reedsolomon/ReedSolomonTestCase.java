@@ -19,7 +19,6 @@ package com.google.zxing.common.reedsolomon;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Random;
@@ -394,7 +393,7 @@ public final class ReedSolomonTestCase extends Assert {
     testEncodeDecodeRandom(GenericGF.AZTEC_DATA_12, 3072, 1023);
   }
 
-  private static void corrupt(int[] received, int howMany, Random random, int max) {
+  public static void corrupt(int[] received, int howMany, Random random, int max) {
     BitSet corrupted = new BitSet(received.length);
     for (int j = 0; j < howMany; j++) {
       int location = random.nextInt(received.length);
@@ -494,14 +493,14 @@ public final class ReedSolomonTestCase extends Assert {
   
   private static String arrayToString(int[] data) {
     StringBuilder sb = new StringBuilder("{");
-    for (int i=0; i<data.length; i++) {
+    for (int i = 0; i < data.length; i++) {
       sb.append(String.format(i > 0 ? ",%X" : "%X", data[i]));
     }
     return sb.append('}').toString();
   }
 
   private static Random getPseudoRandom() {
-    return new SecureRandom(new byte[] {(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF});
+    return new Random(0xDEADBEEF);
   }
 
 }

@@ -39,7 +39,7 @@ public final class StringUtils {
       SHIFT_JIS.equalsIgnoreCase(PLATFORM_DEFAULT_ENCODING) ||
       EUC_JP.equalsIgnoreCase(PLATFORM_DEFAULT_ENCODING);
 
-  private StringUtils() {}
+  private StringUtils() { }
 
   /**
    * @param bytes bytes encoding a string, whose encoding should be guessed
@@ -49,11 +49,8 @@ public final class StringUtils {
    *  default encoding if none of these can possibly be correct
    */
   public static String guessEncoding(byte[] bytes, Map<DecodeHintType,?> hints) {
-    if (hints != null) {
-      String characterSet = (String) hints.get(DecodeHintType.CHARACTER_SET);
-      if (characterSet != null) {
-        return characterSet;
-      }
+    if (hints != null && hints.containsKey(DecodeHintType.CHARACTER_SET)) {
+      return hints.get(DecodeHintType.CHARACTER_SET).toString();
     }
     // For now, merely tries to distinguish ISO-8859-1, UTF-8 and Shift_JIS,
     // which should be by far the most common encodings.
@@ -62,20 +59,15 @@ public final class StringUtils {
     boolean canBeShiftJIS = true;
     boolean canBeUTF8 = true;
     int utf8BytesLeft = 0;
-    //int utf8LowChars = 0;
     int utf2BytesChars = 0;
     int utf3BytesChars = 0;
     int utf4BytesChars = 0;
     int sjisBytesLeft = 0;
-    //int sjisLowChars = 0;
     int sjisKatakanaChars = 0;
-    //int sjisDoubleBytesChars = 0;
     int sjisCurKatakanaWordLength = 0;
     int sjisCurDoubleBytesWordLength = 0;
     int sjisMaxKatakanaWordLength = 0;
     int sjisMaxDoubleBytesWordLength = 0;
-    //int isoLowChars = 0;
-    //int isoHighChars = 0;
     int isoHighOther = 0;
 
     boolean utf8bom = bytes.length > 3 &&
@@ -118,24 +110,16 @@ public final class StringUtils {
               }
             }
           }
-        } //else {
-          //utf8LowChars++;
-        //}
+        }
       }
 
       // ISO-8859-1 stuff
       if (canBeISO88591) {
         if (value > 0x7F && value < 0xA0) {
           canBeISO88591 = false;
-        } else if (value > 0x9F) {
-          if (value < 0xC0 || value == 0xD7 || value == 0xF7) {
-            isoHighOther++;
-          } //else {
-            //isoHighChars++;
-          //}
-        } //else {
-          //isoLowChars++;
-        //}
+        } else if (value > 0x9F && (value < 0xC0 || value == 0xD7 || value == 0xF7)) {
+          isoHighOther++;
+        }
       }
 
       // Shift_JIS stuff
@@ -182,7 +166,7 @@ public final class StringUtils {
     if (canBeUTF8 && (utf8bom || utf2BytesChars + utf3BytesChars + utf4BytesChars > 0)) {
       return UTF8;
     }
-    // Easy -- if assuming Shift_JIS or at least 3 valid consecutive not-ascii characters (and no evidence it can't be), done
+    // Easy -- if assuming Shift_JIS or >= 3 valid consecutive not-ascii characters (and no evidence it can't be), done
     if (canBeShiftJIS && (ASSUME_SHIFT_JIS || sjisMaxKatakanaWordLength >= 3 || sjisMaxDoubleBytesWordLength >= 3)) {
       return SHIFT_JIS;
     }

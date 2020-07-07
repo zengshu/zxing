@@ -57,6 +57,34 @@ public final class BitMatrixTestCase extends Assert {
   }
 
   @Test
+  public void testEnclosing() {
+    BitMatrix matrix = new BitMatrix(5);
+    assertNull(matrix.getEnclosingRectangle());
+    matrix.setRegion(1, 1, 1, 1);
+    assertArrayEquals(new int[] { 1, 1, 1, 1 }, matrix.getEnclosingRectangle());
+    matrix.setRegion(1, 1, 3, 2);
+    assertArrayEquals(new int[] { 1, 1, 3, 2 }, matrix.getEnclosingRectangle());
+    matrix.setRegion(0, 0, 5, 5);
+    assertArrayEquals(new int[] { 0, 0, 5, 5 }, matrix.getEnclosingRectangle());
+  }
+
+  @Test
+  public void testOnBit() {
+    BitMatrix matrix = new BitMatrix(5);
+    assertNull(matrix.getTopLeftOnBit());
+    assertNull(matrix.getBottomRightOnBit());
+    matrix.setRegion(1, 1, 1, 1);
+    assertArrayEquals(new int[] { 1, 1 }, matrix.getTopLeftOnBit());
+    assertArrayEquals(new int[] { 1, 1 }, matrix.getBottomRightOnBit());
+    matrix.setRegion(1, 1, 3, 2);
+    assertArrayEquals(new int[] { 1, 1 }, matrix.getTopLeftOnBit());
+    assertArrayEquals(new int[] { 3, 2 }, matrix.getBottomRightOnBit());
+    matrix.setRegion(0, 0, 5, 5);
+    assertArrayEquals(new int[] { 0, 0 }, matrix.getTopLeftOnBit());
+    assertArrayEquals(new int[] { 4, 4 }, matrix.getBottomRightOnBit());
+  }
+
+  @Test
   public void testRectangularMatrix() {
     BitMatrix matrix = new BitMatrix(75, 20);
     assertEquals(75, matrix.getWidth());
@@ -151,6 +179,104 @@ public final class BitMatrixTestCase extends Assert {
     testRotate180(7, 5);
     testRotate180(8, 4);
     testRotate180(8, 5);
+  }
+
+  @Test
+  public void testParse() {
+    BitMatrix emptyMatrix = new BitMatrix(3, 3);
+    BitMatrix fullMatrix = new BitMatrix(3, 3);
+    fullMatrix.setRegion(0, 0, 3, 3);
+    BitMatrix centerMatrix = new BitMatrix(3, 3);
+    centerMatrix.setRegion(1, 1, 1, 1);
+    BitMatrix emptyMatrix24 = new BitMatrix(2, 4);
+
+    assertEquals(emptyMatrix, BitMatrix.parse("   \n   \n   \n", "x", " "));
+    assertEquals(emptyMatrix, BitMatrix.parse("   \n   \r\r\n   \n\r", "x", " "));
+    assertEquals(emptyMatrix, BitMatrix.parse("   \n   \n   ", "x", " "));
+
+    assertEquals(fullMatrix, BitMatrix.parse("xxx\nxxx\nxxx\n", "x", " "));
+
+    assertEquals(centerMatrix, BitMatrix.parse("   \n x \n   \n", "x", " "));
+    assertEquals(centerMatrix, BitMatrix.parse("      \n  x   \n      \n", "x ", "  "));
+    try {
+      assertEquals(centerMatrix, BitMatrix.parse("   \n xy\n   \n", "x", " "));
+      fail();
+    } catch (IllegalArgumentException ex) {
+      // good
+    }
+
+    assertEquals(emptyMatrix24, BitMatrix.parse("  \n  \n  \n  \n", "x", " "));
+
+    assertEquals(centerMatrix, BitMatrix.parse(centerMatrix.toString("x", "."), "x", "."));
+  }
+
+  @Test
+  public void testUnset() {
+    BitMatrix emptyMatrix = new BitMatrix(3, 3);
+    BitMatrix matrix = emptyMatrix.clone();
+    matrix.set(1, 1);
+    assertNotEquals(emptyMatrix, matrix);
+    matrix.unset(1, 1);
+    assertEquals(emptyMatrix, matrix);
+    matrix.unset(1, 1);
+    assertEquals(emptyMatrix, matrix);
+  }
+
+  @Test
+  public void testXOR() {
+    BitMatrix emptyMatrix = new BitMatrix(3, 3);
+    BitMatrix fullMatrix = new BitMatrix(3, 3);
+    fullMatrix.setRegion(0, 0, 3, 3);
+    BitMatrix centerMatrix = new BitMatrix(3, 3);
+    centerMatrix.setRegion(1, 1, 1, 1);
+    BitMatrix invertedCenterMatrix = fullMatrix.clone();
+    invertedCenterMatrix.unset(1, 1);
+    BitMatrix badMatrix = new BitMatrix(4, 4);
+
+    testXOR(emptyMatrix, emptyMatrix, emptyMatrix);
+    testXOR(emptyMatrix, centerMatrix, centerMatrix);
+    testXOR(emptyMatrix, fullMatrix, fullMatrix);
+
+    testXOR(centerMatrix, emptyMatrix, centerMatrix);
+    testXOR(centerMatrix, centerMatrix, emptyMatrix);
+    testXOR(centerMatrix, fullMatrix, invertedCenterMatrix);
+
+    testXOR(invertedCenterMatrix, emptyMatrix, invertedCenterMatrix);
+    testXOR(invertedCenterMatrix, centerMatrix, fullMatrix);
+    testXOR(invertedCenterMatrix, fullMatrix, centerMatrix);
+
+    testXOR(fullMatrix, emptyMatrix, fullMatrix);
+    testXOR(fullMatrix, centerMatrix, invertedCenterMatrix);
+    testXOR(fullMatrix, fullMatrix, emptyMatrix);
+
+    try {
+      emptyMatrix.clone().xor(badMatrix);
+      fail();
+    } catch (IllegalArgumentException ex) {
+      // good
+    }
+
+    try {
+      badMatrix.clone().xor(emptyMatrix);
+      fail();
+    } catch (IllegalArgumentException ex) {
+      // good
+    }
+  }
+
+  public static String matrixToString(BitMatrix result) {
+    assertEquals(1, result.getHeight());
+    StringBuilder builder = new StringBuilder(result.getWidth());
+    for (int i = 0; i < result.getWidth(); i++) {
+      builder.append(result.get(i, 0) ? '1' : '0');
+    }
+    return builder.toString();
+  }
+
+  private static void testXOR(BitMatrix dataMatrix, BitMatrix flipMatrix, BitMatrix expectedMatrix) {
+    BitMatrix matrix = dataMatrix.clone();
+    matrix.xor(flipMatrix);
+    assertEquals(expectedMatrix, matrix);
   }
 
   private static void testRotate180(int width, int height) {

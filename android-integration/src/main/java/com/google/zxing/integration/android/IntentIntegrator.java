@@ -40,7 +40,7 @@ import android.util.Log;
  * way to invoke barcode scanning and receive the result, without any need to integrate, modify, or learn the
  * project's source code.</p>
  *
- * <h2>Initiating a barcode scan</h2>
+ * <h1>Initiating a barcode scan</h1>
  *
  * <p>To integrate, create an instance of {@code IntentIntegrator} and call {@link #initiateScan()} and wait
  * for the result in your app.</p>
@@ -88,16 +88,16 @@ import android.util.Log;
  * do so. The apps that are allowed to response can be set with {@link #setTargetApplications(List)}.
  * For example, set to {@link #TARGET_BARCODE_SCANNER_ONLY} to only target the Barcode Scanner app itself.</p>
  *
- * <h2>Sharing text via barcode</h2>
+ * <h1>Sharing text via barcode</h1>
  *
  * <p>To share text, encoded as a QR Code on-screen, similarly, see {@link #shareText(CharSequence)}.</p>
  *
  * <p>Some code, particularly download integration, was contributed from the Anobiit application.</p>
  *
- * <h2>Enabling experimental barcode formats</h2>
+ * <h1>Enabling experimental barcode formats</h1>
  *
  * <p>Some formats are not enabled by default even when scanning with {@link #ALL_CODE_TYPES}, such as
- * PDF417. Use {@link #initiateScan(java.util.Collection)} with
+ * PDF417. Use {@link #initiateScan(Collection)} with
  * a collection containing the names of formats to scan for explicitly, like "PDF_417", to use such
  * formats.</p>
  *
@@ -138,6 +138,10 @@ public class IntentIntegrator {
           BS_PACKAGE                  // Barcode Scanner          
           // What else supports this intent?
       );
+
+  // Should be FLAG_ACTIVITY_NEW_DOCUMENT in API 21+.
+  // Defined once here because the current value is deprecated, so generates just one warning
+  private static final int FLAG_NEW_DOC = Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET;
   
   private final Activity activity;
   private final Fragment fragment;
@@ -147,7 +151,7 @@ public class IntentIntegrator {
   private String buttonYes;
   private String buttonNo;
   private List<String> targetApplications;
-  private final Map<String,Object> moreExtras = new HashMap<String,Object>(3);
+  private final Map<String,Object> moreExtras = new HashMap<>(3);
 
   /**
    * @param activity {@link Activity} invoking the integration
@@ -320,7 +324,7 @@ public class IntentIntegrator {
     }
     intentScan.setPackage(targetAppPackage);
     intentScan.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-    intentScan.addFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);
+    intentScan.addFlags(FLAG_NEW_DOC);
     attachMoreExtras(intentScan);
     startActivityForResult(intentScan, REQUEST_CODE);
     return null;
@@ -332,8 +336,8 @@ public class IntentIntegrator {
    *
    * @param intent Intent to start.
    * @param code Request code for the activity
-   * @see android.app.Activity#startActivityForResult(Intent, int)
-   * @see android.app.Fragment#startActivityForResult(Intent, int)
+   * @see Activity#startActivityForResult(Intent, int)
+   * @see Fragment#startActivityForResult(Intent, int)
    */
   protected void startActivityForResult(Intent intent, int code) {
     if (fragment == null) {
@@ -466,7 +470,7 @@ public class IntentIntegrator {
     }
     intent.setPackage(targetAppPackage);
     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);
+    intent.addFlags(FLAG_NEW_DOC);
     attachMoreExtras(intent);
     if (fragment == null) {
       activity.startActivity(intent);
