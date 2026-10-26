@@ -35,6 +35,7 @@ public final class URIParsedResultTestCase extends Assert {
     doTest("MEBKM:URL:google.com;TITLE:Google;", "http://google.com", "Google");
   }
 
+  @SuppressWarnings("checkstyle:lineLength")
   @Test
   public void testURI() {
     doTest("google.com", "http://google.com", null);
@@ -61,6 +62,30 @@ public final class URIParsedResultTestCase extends Assert {
     doTestNotUri("http://google.com?q=foo bar");
     doTestNotUri("12756.501");
     doTestNotUri("google.50");
+    doTestNotUri("foo.bar.bing.baz.foo.bar.bing.baz");
+  }
+
+  // A long run of characters that never forms a URI at the start must be rejected quickly;
+  // find() rescanned from every position and was quadratic on such input.
+  @Test(timeout = 5000L)
+  public void testNoQuadraticScanning() {
+    StringBuilder sb = new StringBuilder(200000);
+    for (int i = 0; i < 200000; i++) {
+      sb.append('a');
+    }
+    assertFalse(URIResultParser.isBasicallyValidURI(sb.toString()));
+  }
+
+  // A scheme followed by a long run of ':' must be checked quickly; ':' is a member of the userinfo
+  // class, so the find() of the user-in-host regex backtracked quadratically on such input.
+  @Test(timeout = 5000L)
+  public void testNoQuadraticMaliciousScanning() {
+    StringBuilder sb = new StringBuilder(200007);
+    sb.append("http://");
+    for (int i = 0; i < 200000; i++) {
+      sb.append(':');
+    }
+    assertFalse(URIResultParser.isPossiblyMaliciousURI(sb.toString()));
   }
 
   @Test
@@ -88,8 +113,16 @@ public final class URIParsedResultTestCase extends Assert {
     doTestIsPossiblyMalicious("https://google.com:443", false);
     doTestIsPossiblyMalicious("https://google.com:443/", false);
     doTestIsPossiblyMalicious("https://evil@google.com:443", true);
+    doTestIsPossiblyMalicious("http://user:pass@evil.com", true);
     doTestIsPossiblyMalicious("http://google.com/foo@bar", false);
+    doTestIsPossiblyMalicious("http://google.com:8080/path@x", false);
     doTestIsPossiblyMalicious("http://google.com/@@", false);
+  }
+
+  @Test
+  public void testMaliciousUnicode() {
+    doTestIsPossiblyMalicious("https://google.com\u2215.evil.com/stuff", true);
+    doTestIsPossiblyMalicious("\u202ehttps://dylankatz.com/moc.elgoog.www//:sptth", true);
   }
 
   @Test
@@ -115,7 +148,7 @@ public final class URIParsedResultTestCase extends Assert {
     assertEquals(uri, uriResult.getURI());
     assertEquals(title, uriResult.getTitle());
   }
-  
+
   private static void doTestNotUri(String text) {
     Result fakeResult = new Result(text, null, null, BarcodeFormat.QR_CODE);
     ParsedResult result = ResultParser.parseResult(fakeResult);
@@ -123,9 +156,10 @@ public final class URIParsedResultTestCase extends Assert {
     assertEquals(text, result.getDisplayResult());
   }
 
-  private static void doTestIsPossiblyMalicious(String uri, boolean expected) {
-    URIParsedResult result = new URIParsedResult(uri, null);
-    assertEquals(expected, result.isPossiblyMaliciousURI());
+  private static void doTestIsPossiblyMalicious(String uri, boolean malicious) {
+    Result fakeResult = new Result(uri, null, null, BarcodeFormat.QR_CODE);
+    ParsedResult result = ResultParser.parseResult(fakeResult);
+    assertSame(malicious ? ParsedResultType.TEXT : ParsedResultType.URI, result.getType());
   }
 
 }

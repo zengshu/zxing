@@ -30,11 +30,14 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatReader;
 import com.google.zxing.common.AbstractBlackBoxTestCase;
 
+/**
+ * A test of {@link RSSExpandedReader} against a fixed test set of images.
+ */
 public final class RSSExpandedBlackBox1TestCase extends AbstractBlackBoxTestCase {
 
   public RSSExpandedBlackBox1TestCase() {
     super("src/test/resources/blackbox/rssexpanded-1", new MultiFormatReader(), BarcodeFormat.RSS_EXPANDED);
-    addTest(32, 32, 0.0f);
-    addTest(32, 32, 180.0f);
+    addTest(35, 35, 0.0f);
+    addTest(35, 35, 180.0f);
   }
 }

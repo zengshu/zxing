@@ -19,12 +19,18 @@ package com.google.zxing.aztec.decoder;
 import com.google.zxing.FormatException;
 import com.google.zxing.aztec.AztecDetectorResult;
 import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.CharacterSetECI;
 import com.google.zxing.common.DecoderResult;
 import com.google.zxing.common.reedsolomon.GenericGF;
 import com.google.zxing.common.reedsolomon.ReedSolomonDecoder;
 import com.google.zxing.common.reedsolomon.ReedSolomonException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * <p>The main class which implements Aztec Code decoding -- as opposed to locating and extracting
@@ -60,7 +66,7 @@ public final class Decoder {
   };
 
   private static final String[] PUNCT_TABLE = {
-      "", "\r", "\r\n", ". ", ", ", ": ", "!", "\"", "#", "$", "%", "&", "'", "(", ")",
+      "FLG(n)", "\r", "\r\n", ". ", ", ", ": ", "!", "\"", "#", "$", "%", "&", "'", "(", ")",
       "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "[", "]", "{", "}", "CTRL_UL"
   };
 
@@ -68,19 +74,26 @@ public final class Decoder {
       "CTRL_PS", " ", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ",", ".", "CTRL_UL", "CTRL_US"
   };
 
+  private static final Charset DEFAULT_ENCODING = StandardCharsets.ISO_8859_1;
+
   private AztecDetectorResult ddata;
 
   public DecoderResult decode(AztecDetectorResult detectorResult) throws FormatException {
     ddata = detectorResult;
     BitMatrix matrix = detectorResult.getBits();
     boolean[] rawbits = extractBits(matrix);
-    boolean[] correctedBits = correctBits(rawbits);
-    String result = getEncodedData(correctedBits);
-    return new DecoderResult(null, result, null, null);
+    CorrectedBitsResult correctedBits = correctBits(rawbits);
+    byte[] rawBytes = convertBoolArrayToByteArray(correctedBits.correctBits);
+    String result = getEncodedData(correctedBits.correctBits);
+    DecoderResult decoderResult =
+        new DecoderResult(rawBytes, result, null, String.format(Locale.ROOT, "%d%%", correctedBits.ecLevel));
+    decoderResult.setNumBits(correctedBits.correctBits.length);
+    decoderResult.setErrorsCorrected(correctedBits.errorsCorrected);
+    return decoderResult;
   }
 
   // This method is used for testing the high-level encoder
-  public static String highLevelDecode(boolean[] correctedBits) {
+  public static String highLevelDecode(boolean[] correctedBits) throws FormatException {
     return getEncodedData(correctedBits);
   }
 
@@ -89,11 +102,20 @@ public final class Decoder {
    *
    * @return the decoded string
    */
-  private static String getEncodedData(boolean[] correctedBits) {
+  private static String getEncodedData(boolean[] correctedBits) throws FormatException {
     int endIndex = correctedBits.length;
     Table latchTable = Table.UPPER; // table most recently latched to
     Table shiftTable = Table.UPPER; // table to use for the next read
-    StringBuilder result = new StringBuilder(20);
+
+    // Final decoded string result
+    // (correctedBits-5) / 4 is an upper bound on the size (all-digit result)
+    StringBuilder result = new StringBuilder(Math.max(0, (correctedBits.length - 5) / 4));
+
+    // Intermediary buffer of decoded bytes, which is decoded into a string and flushed
+    // when character encoding changes (ECI) or input ends.
+    ByteArrayOutputStream decodedBytes = new ByteArrayOutputStream();
+    Charset encoding = DEFAULT_ENCODING;
+
     int index = 0;
     while (index < endIndex) {
       if (shiftTable == Table.BINARY) {
@@ -115,7 +137,7 @@ public final class Decoder {
             break;
           }
           int code = readCode(correctedBits, index, 8);
-          result.append((char) code);
+          decodedBytes.write((byte) code);
           index += 8;
         }
         // Go back to whatever mode we had been in
@@ -128,18 +150,71 @@ public final class Decoder {
         int code = readCode(correctedBits, index, size);
         index += size;
         String str = getCharacter(shiftTable, code);
-        if (str.startsWith("CTRL_")) {
+        if ("FLG(n)".equals(str)) {
+          if (endIndex - index < 3) {
+            break;
+          }
+          int n = readCode(correctedBits, index, 3);
+          index += 3;
+          //  flush bytes, FLG changes state
+          try {
+            result.append(decodedBytes.toString(encoding.name()));
+          } catch (UnsupportedEncodingException uee) {
+            throw new IllegalStateException(uee);
+          }
+          decodedBytes.reset();
+          switch (n) {
+            case 0:
+              result.append((char) 29);  // translate FNC1 as ASCII 29
+              break;
+            case 7:
+              throw FormatException.getFormatInstance(); // FLG(7) is reserved and illegal
+            default:
+              // ECI is decimal integer encoded as 1-6 codes in DIGIT mode
+              int eci = 0;
+              if (endIndex - index < 4 * n) {
+                break;
+              }
+              while (n-- > 0) {
+                int nextDigit = readCode(correctedBits, index, 4);
+                index += 4;
+                if (nextDigit < 2 || nextDigit > 11) {
+                  throw FormatException.getFormatInstance(); // Not a decimal digit
+                }
+                eci = eci * 10 + (nextDigit - 2);
+              }
+              CharacterSetECI charsetECI = CharacterSetECI.getCharacterSetECIByValue(eci);
+              if (charsetECI == null) {
+                throw FormatException.getFormatInstance();
+              }
+              encoding = charsetECI.getCharset();
+          }
+          // Go back to whatever mode we had been in
+          shiftTable = latchTable;
+        } else if (str.startsWith("CTRL_")) {
           // Table changes
+          // ISO/IEC 24778:2008 prescribes ending a shift sequence in the mode from which it was invoked.
+          // That's including when that mode is a shift.
+          // Our test case dlusbs.png for issue #642 exercises that.
+          latchTable = shiftTable;  // Latch the current mode, so as to return to Upper after U/S B/S
           shiftTable = getTable(str.charAt(5));
           if (str.charAt(6) == 'L') {
             latchTable = shiftTable;
           }
         } else {
-          result.append(str);
+          // Though stored as a table of strings for convenience, codes actually represent 1 or 2 *bytes*.
+          byte[] b = str.getBytes(StandardCharsets.US_ASCII);
+          decodedBytes.write(b, 0, b.length);
           // Go back to whatever mode we had been in
           shiftTable = latchTable;
         }
       }
+    }
+    try {
+      result.append(decodedBytes.toString(encoding.name()));
+    } catch (UnsupportedEncodingException uee) {
+      // can't happen
+      throw new IllegalStateException(uee);
     }
     return result.toString();
   }
@@ -189,13 +264,25 @@ public final class Decoder {
     }
   }
 
+  static final class CorrectedBitsResult {
+    private final boolean[] correctBits;
+    private final int errorsCorrected;
+    private final int ecLevel;
+
+    CorrectedBitsResult(boolean[] correctBits, int errorsCorrected, int ecLevel) {
+      this.correctBits = correctBits;
+      this.errorsCorrected = errorsCorrected;
+      this.ecLevel = ecLevel;
+    }
+  }
+
   /**
    * <p>Performs RS error correction on an array of bits.</p>
    *
    * @return the corrected array
    * @throws FormatException if the input contains too many errors
    */
-  private boolean[] correctBits(boolean[] rawbits) throws FormatException {
+  private CorrectedBitsResult correctBits(boolean[] rawbits) throws FormatException {
     GenericGF gf;
     int codewordSize;
 
@@ -215,22 +302,22 @@ public final class Decoder {
 
     int numDataCodewords = ddata.getNbDatablocks();
     int numCodewords = rawbits.length / codewordSize;
-    if (numCodewords < numDataCodewords) {
+    if (numDataCodewords < 1 || numCodewords < numDataCodewords) {
       throw FormatException.getFormatInstance();
     }
     int offset = rawbits.length % codewordSize;
-    int numECCodewords = numCodewords - numDataCodewords;
 
     int[] dataWords = new int[numCodewords];
     for (int i = 0; i < numCodewords; i++, offset += codewordSize) {
       dataWords[i] = readCode(rawbits, offset, codewordSize);
     }
 
+    int errorsCorrected = 0;
     try {
       ReedSolomonDecoder rsDecoder = new ReedSolomonDecoder(gf);
-      rsDecoder.decode(dataWords, numECCodewords);
-    } catch (ReedSolomonException ignored) {
-      throw FormatException.getFormatInstance();
+      errorsCorrected = rsDecoder.decodeWithECCount(dataWords, numCodewords - numDataCodewords);
+    } catch (ReedSolomonException ex) {
+      throw FormatException.getFormatInstance(ex);
     }
 
     // Now perform the unstuffing operation.
@@ -260,7 +347,9 @@ public final class Decoder {
         }
       }
     }
-    return correctedBits;
+
+    int ecLevel = 100 * (numCodewords - numDataCodewords) / numCodewords;
+    return new CorrectedBitsResult(correctedBits, errorsCorrected, ecLevel);
   }
 
   /**
@@ -268,10 +357,16 @@ public final class Decoder {
    *
    * @return the array of bits
    */
-  boolean[] extractBits(BitMatrix matrix) {
+  private boolean[] extractBits(BitMatrix matrix) throws FormatException {
     boolean compact = ddata.isCompact();
     int layers = ddata.getNbLayers();
-    int baseMatrixSize = compact ? 11 + layers * 4 : 14 + layers * 4; // not including alignment lines
+    int baseMatrixSize = (compact ? 11 : 14) + layers * 4; // not including alignment lines
+    int matrixSize = compact ? baseMatrixSize : baseMatrixSize + 1 + 2 * ((baseMatrixSize / 2 - 1) / 15);
+    if (matrix.getHeight() != matrixSize || matrix.getWidth() != matrixSize) {
+      // The matrix dimensions are fixed by the layer count; a mismatched detector result would
+      // otherwise index outside the matrix below.
+      throw FormatException.getFormatInstance();
+    }
     int[] alignmentMap = new int[baseMatrixSize];
     boolean[] rawbits = new boolean[totalBitsInLayer(layers, compact)];
 
@@ -280,7 +375,6 @@ public final class Decoder {
         alignmentMap[i] = i;
       }
     } else {
-      int matrixSize = baseMatrixSize + 1 + 2 * ((baseMatrixSize / 2 - 1) / 15);
       int origCenter = baseMatrixSize / 2;
       int center = matrixSize / 2;
       for (int i = 0; i < origCenter; i++) {
@@ -290,7 +384,7 @@ public final class Decoder {
       }
     }
     for (int i = 0, rowOffset = 0; i < layers; i++) {
-      int rowSize = compact ? (layers - i) * 4 + 9 : (layers - i) * 4 + 12;
+      int rowSize = (layers - i) * 4 + (compact ? 9 : 12);
       // The top-left most point of this layer is <low, low> (not including alignment lines)
       int low = i * 2;
       // The bottom-right most point of this layer is <high, high> (not including alignment lines)
@@ -330,6 +424,28 @@ public final class Decoder {
       }
     }
     return res;
+  }
+
+  /**
+   * Reads a code of length 8 in an array of bits, padding with zeros
+   */
+  private static byte readByte(boolean[] rawbits, int startIndex) {
+    int n = rawbits.length - startIndex;
+    if (n >= 8) {
+      return (byte) readCode(rawbits, startIndex, 8);
+    }
+    return (byte) (readCode(rawbits, startIndex, n) << (8 - n));
+  }
+
+  /**
+   * Packs a bit array into bytes, most significant bit first
+   */
+  static byte[] convertBoolArrayToByteArray(boolean[] boolArr) {
+    byte[] byteArr = new byte[(boolArr.length + 7) / 8];
+    for (int i = 0; i < byteArr.length; i++) {
+      byteArr[i] = readByte(boolArr, 8 * i);
+    }
+    return byteArr;
   }
 
   private static int totalBitsInLayer(int layers, boolean compact) {

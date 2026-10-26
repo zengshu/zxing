@@ -46,6 +46,12 @@ public final class ErrorCorrection {
                     int numECCodewords,
                     int[] erasures) throws ChecksumException {
 
+    if (received.length > field.getSize()) {
+      // A codeword cannot be longer than the field; otherwise erasure and error positions
+      // index past the exponent table in exp()/log().
+      throw ChecksumException.getChecksumInstance();
+    }
+
     ModulusPoly poly = new ModulusPoly(field, received);
     int[] S = new int[numECCodewords];
     boolean error = false;
@@ -166,6 +172,9 @@ public final class ErrorCorrection {
                                     ModulusPoly errorLocator,
                                     int[] errorLocations) {
     int errorLocatorDegree = errorLocator.getDegree();
+    if (errorLocatorDegree < 1) {
+      return new int[0];
+    }
     int[] formalDerivativeCoefficients = new int[errorLocatorDegree];
     for (int i = 1; i <= errorLocatorDegree; i++) {
       formalDerivativeCoefficients[errorLocatorDegree - i] =

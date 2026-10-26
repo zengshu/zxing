@@ -26,10 +26,10 @@ public final class AztecBlackBox1TestCase extends AbstractBlackBoxTestCase {
 
   public AztecBlackBox1TestCase() {
     super("src/test/resources/blackbox/aztec-1", new AztecReader(), BarcodeFormat.AZTEC);
-    addTest(12, 12, 0.0f);
-    addTest(12, 12, 90.0f);
-    addTest(12, 12, 180.0f);
-    addTest(12, 12, 270.0f);
+    addTest(17, 17, 0.0f);
+    addTest(17, 17, 90.0f);
+    addTest(17, 17, 180.0f);
+    addTest(17, 17, 270.0f);
   }
 
 }

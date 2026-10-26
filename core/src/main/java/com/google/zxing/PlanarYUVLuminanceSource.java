@@ -29,7 +29,7 @@ package com.google.zxing;
 public final class PlanarYUVLuminanceSource extends LuminanceSource {
 
   private static final int THUMBNAIL_SCALE_FACTOR = 2;
-  
+
   private final byte[] yuvData;
   private final int dataWidth;
   private final int dataHeight;
@@ -46,7 +46,8 @@ public final class PlanarYUVLuminanceSource extends LuminanceSource {
                                   boolean reverseHorizontal) {
     super(width, height);
 
-    if (left + width > dataWidth || top + height > dataHeight) {
+    if (left < 0 || top < 0 || width < 0 || height < 0 ||
+        width > dataWidth - left || height > dataHeight - top) {
       throw new IllegalArgumentException("Crop rectangle does not fit within image data.");
     }
 
@@ -96,10 +97,9 @@ public final class PlanarYUVLuminanceSource extends LuminanceSource {
     }
 
     // Otherwise copy one cropped row at a time.
-    byte[] yuv = yuvData;
     for (int y = 0; y < height; y++) {
       int outputOffset = y * width;
-      System.arraycopy(yuv, inputOffset, matrix, outputOffset, width);
+      System.arraycopy(yuvData, inputOffset, matrix, outputOffset, width);
       inputOffset += dataWidth;
     }
     return matrix;
@@ -139,17 +139,17 @@ public final class PlanarYUVLuminanceSource extends LuminanceSource {
     }
     return pixels;
   }
-  
+
   /**
    * @return width of image from {@link #renderThumbnail()}
    */
   public int getThumbnailWidth() {
     return getWidth() / THUMBNAIL_SCALE_FACTOR;
   }
-  
+
   /**
    * @return height of image from {@link #renderThumbnail()}
-   */  
+   */
   public int getThumbnailHeight() {
     return getHeight() / THUMBNAIL_SCALE_FACTOR;
   }

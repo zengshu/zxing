@@ -28,20 +28,31 @@ import java.util.List;
 public final class DecoderResult {
 
   private final byte[] rawBytes;
+  private int numBits;
   private final String text;
   private final List<byte[]> byteSegments;
   private final String ecLevel;
   private Integer errorsCorrected;
   private Integer erasures;
   private Object other;
+  private Boolean readerInit;
   private final int structuredAppendParity;
   private final int structuredAppendSequenceNumber;
+  private final int symbologyModifier;
 
   public DecoderResult(byte[] rawBytes,
                        String text,
                        List<byte[]> byteSegments,
                        String ecLevel) {
-    this(rawBytes, text, byteSegments, ecLevel, -1, -1);
+    this(rawBytes, text, byteSegments, ecLevel, -1, -1, 0);
+  }
+
+  public DecoderResult(byte[] rawBytes,
+                       String text,
+                       List<byte[]> byteSegments,
+                       String ecLevel,
+                       int symbologyModifier) {
+    this(rawBytes, text, byteSegments, ecLevel, -1, -1, symbologyModifier);
   }
 
   public DecoderResult(byte[] rawBytes,
@@ -50,30 +61,73 @@ public final class DecoderResult {
                        String ecLevel,
                        int saSequence,
                        int saParity) {
+    this(rawBytes, text, byteSegments, ecLevel, saSequence, saParity, 0);
+  }
+
+  public DecoderResult(byte[] rawBytes,
+                       String text,
+                       List<byte[]> byteSegments,
+                       String ecLevel,
+                       int saSequence,
+                       int saParity,
+                       int symbologyModifier) {
     this.rawBytes = rawBytes;
+    this.numBits = rawBytes == null ? 0 : 8 * rawBytes.length;
     this.text = text;
     this.byteSegments = byteSegments;
     this.ecLevel = ecLevel;
     this.structuredAppendParity = saParity;
     this.structuredAppendSequenceNumber = saSequence;
+    this.symbologyModifier = symbologyModifier;
   }
 
+  /**
+   * @return raw bytes representing the result, or {@code null} if not applicable
+   */
   public byte[] getRawBytes() {
     return rawBytes;
   }
 
+  /**
+   * @return how many bits of {@link #getRawBytes()} are valid; typically 8 times its length
+   * @since 3.3.0
+   */
+  public int getNumBits() {
+    return numBits;
+  }
+
+  /**
+   * @param numBits overrides the number of bits that are valid in {@link #getRawBytes()}
+   * @since 3.3.0
+   */
+  public void setNumBits(int numBits) {
+    this.numBits = numBits;
+  }
+
+  /**
+   * @return text representation of the result
+   */
   public String getText() {
     return text;
   }
 
+  /**
+   * @return list of byte segments in the result, or {@code null} if not applicable
+   */
   public List<byte[]> getByteSegments() {
     return byteSegments;
   }
 
+  /**
+   * @return name of error correction level used, or {@code null} if not applicable
+   */
   public String getECLevel() {
     return ecLevel;
   }
 
+  /**
+   * @return number of errors corrected, or {@code null} if not applicable
+   */
   public Integer getErrorsCorrected() {
     return errorsCorrected;
   }
@@ -82,6 +136,9 @@ public final class DecoderResult {
     this.errorsCorrected = errorsCorrected;
   }
 
+  /**
+   * @return number of erasures corrected, or {@code null} if not applicable
+   */
   public Integer getErasures() {
     return erasures;
   }
@@ -89,7 +146,10 @@ public final class DecoderResult {
   public void setErasures(Integer erasures) {
     this.erasures = erasures;
   }
-  
+
+  /**
+   * @return arbitrary additional metadata
+   */
   public Object getOther() {
     return other;
   }
@@ -97,17 +157,33 @@ public final class DecoderResult {
   public void setOther(Object other) {
     this.other = other;
   }
-  
+
+  /**
+   * @return whether or not the message is a reader initialization message,
+   * or {@code null} if not applicable
+   */
+  public Boolean getReaderInit() {
+    return readerInit;
+  }
+
+  public void setReaderInit(Boolean readerInit) {
+    this.readerInit = readerInit;
+  }
+
   public boolean hasStructuredAppend() {
     return structuredAppendParity >= 0 && structuredAppendSequenceNumber >= 0;
   }
-  
+
   public int getStructuredAppendParity() {
     return structuredAppendParity;
   }
-  
+
   public int getStructuredAppendSequenceNumber() {
     return structuredAppendSequenceNumber;
   }
-  
+
+  public int getSymbologyModifier() {
+    return symbologyModifier;
+  }
+
 }

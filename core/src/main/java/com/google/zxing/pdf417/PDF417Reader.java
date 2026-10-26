@@ -43,6 +43,8 @@ import java.util.Map;
  */
 public final class PDF417Reader implements Reader, MultipleBarcodeReader {
 
+  private static final Result[] EMPTY_RESULT_ARRAY = new Result[0];
+
   /**
    * Locates and decodes a PDF417 code in an image.
    *
@@ -59,7 +61,7 @@ public final class PDF417Reader implements Reader, MultipleBarcodeReader {
   public Result decode(BinaryBitmap image, Map<DecodeHintType,?> hints) throws NotFoundException, FormatException,
       ChecksumException {
     Result[] result = decode(image, hints, false);
-    if (result == null || result.length == 0 || result[0] == null) {
+    if (result.length == 0 || result[0] == null) {
       throw NotFoundException.getNotFoundInstance();
     }
     return result[0];
@@ -79,7 +81,7 @@ public final class PDF417Reader implements Reader, MultipleBarcodeReader {
     }
   }
 
-  private static Result[] decode(BinaryBitmap image, Map<DecodeHintType, ?> hints, boolean multiple) 
+  private static Result[] decode(BinaryBitmap image, Map<DecodeHintType, ?> hints, boolean multiple)
       throws NotFoundException, FormatException, ChecksumException {
     List<Result> results = new ArrayList<>();
     PDF417DetectorResult detectorResult = Detector.detect(image, hints, multiple);
@@ -88,13 +90,18 @@ public final class PDF417Reader implements Reader, MultipleBarcodeReader {
           points[6], points[7], getMinCodewordWidth(points), getMaxCodewordWidth(points));
       Result result = new Result(decoderResult.getText(), decoderResult.getRawBytes(), points, BarcodeFormat.PDF_417);
       result.putMetadata(ResultMetadataType.ERROR_CORRECTION_LEVEL, decoderResult.getECLevel());
+      result.putMetadata(ResultMetadataType.ERRORS_CORRECTED, decoderResult.getErrorsCorrected());
+      result.putMetadata(ResultMetadataType.ERASURES_CORRECTED, decoderResult.getErasures());
       PDF417ResultMetadata pdf417ResultMetadata = (PDF417ResultMetadata) decoderResult.getOther();
       if (pdf417ResultMetadata != null) {
         result.putMetadata(ResultMetadataType.PDF417_EXTRA_METADATA, pdf417ResultMetadata);
       }
+      result.putMetadata(ResultMetadataType.ORIENTATION, detectorResult.getRotation());
+      result.putMetadata(ResultMetadataType.READER_INIT, decoderResult.getReaderInit());
+      result.putMetadata(ResultMetadataType.SYMBOLOGY_IDENTIFIER, "]L" + decoderResult.getSymbologyModifier());
       results.add(result);
     }
-    return results.toArray(new Result[results.size()]);
+    return results.toArray(EMPTY_RESULT_ARRAY);
   }
 
   private static int getMaxWidth(ResultPoint p1, ResultPoint p2) {

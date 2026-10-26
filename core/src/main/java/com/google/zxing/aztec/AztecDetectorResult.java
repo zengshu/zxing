@@ -20,21 +20,50 @@ import com.google.zxing.ResultPoint;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.common.DetectorResult;
 
+/**
+ * <p>Extends {@link DetectorResult} with more information specific to the Aztec format,
+ * like the number of layers and whether it's compact.</p>
+ *
+ * @author Sean Owen
+ */
 public final class AztecDetectorResult extends DetectorResult {
 
   private final boolean compact;
+  private final boolean readerInit;
   private final int nbDatablocks;
   private final int nbLayers;
+  private final int errorsCorrected;
 
   public AztecDetectorResult(BitMatrix bits,
                              ResultPoint[] points,
                              boolean compact,
                              int nbDatablocks,
                              int nbLayers) {
+    this(bits, points, compact, nbDatablocks, nbLayers, 0, false);
+  }
+
+  public AztecDetectorResult(BitMatrix bits,
+      ResultPoint[] points,
+      boolean compact,
+      int nbDatablocks,
+      int nbLayers,
+      int errorsCorrected) {
+    this(bits, points, compact, nbDatablocks, nbLayers, errorsCorrected, false);
+  }
+
+  public AztecDetectorResult(BitMatrix bits,
+                             ResultPoint[] points,
+                             boolean compact,
+                             int nbDatablocks,
+                             int nbLayers,
+                             int errorsCorrected,
+                             boolean readerInit) {
     super(bits, points);
     this.compact = compact;
+    this.readerInit = readerInit;
     this.nbDatablocks = nbDatablocks;
     this.nbLayers = nbLayers;
+    this.errorsCorrected = errorsCorrected;
   }
 
   public int getNbLayers() {
@@ -49,4 +78,11 @@ public final class AztecDetectorResult extends DetectorResult {
     return compact;
   }
 
+  public boolean isReaderInit() {
+    return readerInit;
+  }
+
+  public int getErrorsCorrected() {
+    return errorsCorrected;
+  }
 }

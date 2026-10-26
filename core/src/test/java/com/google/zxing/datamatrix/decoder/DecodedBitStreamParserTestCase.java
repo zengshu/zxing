@@ -16,6 +16,7 @@
 
 package com.google.zxing.datamatrix.decoder;
 
+import com.google.zxing.FormatException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,14 +35,22 @@ public final class DecodedBitStreamParserTestCase extends Assert {
   }
 
   @Test
-  public void testAsciiDoubleDigitDecode() throws Exception{
+  public void testAsciiDoubleDigitDecode() throws Exception {
     // ASCII double digit (00 - 99) Numeric Value + 130
-    byte[] bytes = {(byte)       130 , (byte) ( 1 + 130),
+    byte[] bytes = {(byte)       130 , (byte) (1 + 130),
                     (byte) (98 + 130), (byte) (99 + 130)};
     String decodedString = DecodedBitStreamParser.decode(bytes).getText();
     assertEquals("00019899", decodedString);
   }
   
+  @Test(expected = FormatException.class)
+  public void testBase256TruncatedLongLength() throws Exception {
+    // 231 latches to Base 256. The next byte unrandomizes to 250 at codeword position 2,
+    // which signals a multi-byte length, but no further byte is present to read.
+    byte[] bytes = {(byte) 231, (byte) 38};
+    DecodedBitStreamParser.decode(bytes);
+  }
+
   // TODO(bbrown): Add test cases for each encoding type
   // TODO(bbrown): Add test cases for switching encoding types
 }

@@ -45,14 +45,16 @@ public final class BufferedImageLuminanceSource extends LuminanceSource {
   public BufferedImageLuminanceSource(BufferedImage image, int left, int top, int width, int height) {
     super(width, height);
 
+    int sourceWidth = image.getWidth();
+    int sourceHeight = image.getHeight();
+    if (left < 0 || top < 0 || width < 0 || height < 0 ||
+        width > sourceWidth - left || height > sourceHeight - top) {
+      throw new IllegalArgumentException("Crop rectangle does not fit within image data.");
+    }
+
     if (image.getType() == BufferedImage.TYPE_BYTE_GRAY) {
       this.image = image;
     } else {
-      int sourceWidth = image.getWidth();
-      int sourceHeight = image.getHeight();
-      if (left + width > sourceWidth || top + height > sourceHeight) {
-        throw new IllegalArgumentException("Crop rectangle does not fit within image data.");
-      }
 
       this.image = new BufferedImage(sourceWidth, sourceHeight, BufferedImage.TYPE_BYTE_GRAY);
 
@@ -67,15 +69,18 @@ public final class BufferedImageLuminanceSource extends LuminanceSource {
           // black (0 alpha, and then 0 RGB). They are often used, of course as the "white" area in a
           // barcode image. Force any such pixel to be white:
           if ((pixel & 0xFF000000) == 0) {
-            pixel = 0xFFFFFFFF; // = white
-          }
-
-          // .229R + 0.587G + 0.114B (YUV/YIQ for PAL and NTSC)
-          buffer[x] =
+            // white, so we know its luminance is 255
+            buffer[x] = 0xFF;
+          } else {
+            // .299R + 0.587G + 0.114B (YUV/YIQ for PAL and NTSC),
+            // (306*R) >> 10 is approximately equal to R*0.299, and so on.
+            // 0x200 >> 10 is 0.5, it implements rounding.
+            buffer[x] =
               (306 * ((pixel >> 16) & 0xFF) +
-               601 * ((pixel >> 8) & 0xFF) +
-               117 * (pixel & 0xFF) +
-               0x200) >> 10;
+                601 * ((pixel >> 8) & 0xFF) +
+                117 * (pixel & 0xFF) +
+                0x200) >> 10;
+          }
         }
         raster.setPixels(left, y, width, 1, buffer);
       }

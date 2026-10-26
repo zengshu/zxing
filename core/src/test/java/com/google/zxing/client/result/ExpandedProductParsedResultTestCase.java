@@ -41,7 +41,7 @@ import java.util.Map;
 public final class ExpandedProductParsedResultTestCase extends Assert {
 
   @Test
-  public void test_RSSExpanded() {
+  public void testRSSExpanded() {
     Map<String,String> uncommonAIs = new HashMap<>();
     uncommonAIs.put("123", "544654");
     Result result =
@@ -62,5 +62,15 @@ public final class ExpandedProductParsedResultTestCase extends Assert {
     assertEquals("2", o.getPriceIncrement());
     assertEquals("445", o.getPriceCurrency());
     assertEquals(uncommonAIs, o.getUncommonAIs());
+  }
+
+  @Test
+  public void testUnterminatedAI() {
+    // an AI that is not closed by ')' must not match, rather than read past the end of the text
+    ExpandedProductResultParser parser = new ExpandedProductResultParser();
+    assertNull(parser.parse(new Result("(99", null, null, BarcodeFormat.RSS_EXPANDED)));
+    assertNull(parser.parse(new Result("(", null, null, BarcodeFormat.RSS_EXPANDED)));
+    // a valid prefix followed by a truncated final AI must parse without throwing
+    assertNotNull(parser.parse(new Result("(01)66546(13)001205(3932", null, null, BarcodeFormat.RSS_EXPANDED)));
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2008 ZXing authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,13 +62,13 @@ public final class QRCodeTestCase extends Assert {
   public void testToString1() {
     QRCode qrCode = new QRCode();
     String expected =
-      "<<\n" +
-      " mode: null\n" +
-      " ecLevel: null\n" +
-      " version: null\n" +
-      " maskPattern: -1\n" +
-      " matrix: null\n" +
-      ">>\n";
+        "<<\n" +
+        " mode: null\n" +
+        " ecLevel: null\n" +
+        " version: null\n" +
+        " maskPattern: -1\n" +
+        " matrix: null\n" +
+        ">>\n";
     assertEquals(expected, qrCode.toString());
   }
 

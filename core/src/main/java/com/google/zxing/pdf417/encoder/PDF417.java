@@ -643,13 +643,24 @@ public final class PDF417 {
    * @throws WriterException if the contents cannot be encoded in this format
    */
   public void generateBarcodeLogic(String msg, int errorCorrectionLevel) throws WriterException {
+    generateBarcodeLogic(msg, errorCorrectionLevel, false);
+  }
+
+  /**
+   * @param msg message to encode
+   * @param errorCorrectionLevel PDF417 error correction level to use
+   * @param autoECI automatically insert ECIs if needed
+   * @throws WriterException if the contents cannot be encoded in this format
+   */
+  public void generateBarcodeLogic(String msg, int errorCorrectionLevel, boolean autoECI) throws WriterException {
 
     //1. step: High-level encoding
     int errorCorrectionCodeWords = PDF417ErrorCorrection.getErrorCorrectionCodewordCount(errorCorrectionLevel);
-    String highLevel = PDF417HighLevelEncoder.encodeHighLevel(msg, compaction, encoding);
+    String highLevel = PDF417HighLevelEncoder.encodeHighLevel(msg, compaction, encoding, autoECI);
     int sourceCodeWords = highLevel.length();
 
-    int[] dimension = determineDimensions(sourceCodeWords, errorCorrectionCodeWords);
+    int[] dimension = determineDimensions(minCols, maxCols, minRows, maxRows, 
+        sourceCodeWords, errorCorrectionCodeWords);
 
     int cols = dimension[0];
     int rows = dimension[1];
@@ -659,7 +670,7 @@ public final class PDF417 {
     //2. step: construct data codewords
     if (sourceCodeWords + errorCorrectionCodeWords + 1 > 929) { // +1 for symbol length CW
       throw new WriterException(
-          "Encoded message contains to many code words, message to big (" + msg.length() + " bytes)");
+          "Encoded message contains too many code words, message too big (" + msg.length() + " bytes)");
     }
     int n = sourceCodeWords + pad + 1;
     StringBuilder sb = new StringBuilder(n);
@@ -672,27 +683,35 @@ public final class PDF417 {
 
     //3. step: Error correction
     String ec = PDF417ErrorCorrection.generateErrorCorrection(dataCodewords, errorCorrectionLevel);
-    String fullCodewords = dataCodewords + ec;
 
     //4. step: low-level encoding
     barcodeMatrix = new BarcodeMatrix(rows, cols);
-    encodeLowLevel(fullCodewords, cols, rows, errorCorrectionLevel, barcodeMatrix);
+    encodeLowLevel(dataCodewords + ec, cols, rows, errorCorrectionLevel, barcodeMatrix);
   }
 
   /**
    * Determine optimal nr of columns and rows for the specified number of
    * codewords.
    *
+   * @param minCols minimum number of columns
+   * @param maxCols maximum number of columns
+   * @param minRows minimum number of rows
+   * @param maxRows maximum number of rows
    * @param sourceCodeWords number of code words
    * @param errorCorrectionCodeWords number of error correction code words
    * @return dimension object containing cols as width and rows as height
+   * @throws WriterException when dimensions can't be determined
    */
-  private int[] determineDimensions(int sourceCodeWords, int errorCorrectionCodeWords) throws WriterException {
+  protected static int[] determineDimensions(int minCols, int maxCols,
+      int minRows, int maxRows,
+      int sourceCodeWords, int errorCorrectionCodeWords) throws WriterException {
     float ratio = 0.0f;
     int[] dimension = null;
+    int currentCol = minCols;
 
     for (int cols = minCols; cols <= maxCols; cols++) {
-
+      currentCol = cols;
+      
       int rows = calculateNumberOfRows(sourceCodeWords, errorCorrectionCodeWords, cols);
 
       if (rows < minRows) {
@@ -703,7 +722,7 @@ public final class PDF417 {
         continue;
       }
 
-      float newRatio = ((17 * cols + 69) * DEFAULT_MODULE_WIDTH) / (rows * HEIGHT);
+      float newRatio = ((float) (17 * cols + 69) * DEFAULT_MODULE_WIDTH) / (rows * HEIGHT);
 
       // ignore if previous ratio is closer to preferred ratio
       if (dimension != null && Math.abs(newRatio - PREFERRED_RATIO) > Math.abs(ratio - PREFERRED_RATIO)) {
@@ -714,13 +733,13 @@ public final class PDF417 {
       dimension = new int[] {cols, rows};
     }
 
-     // Handle case when min values were larger than necessary
-     if (dimension == null) {
-       int rows = calculateNumberOfRows(sourceCodeWords, errorCorrectionCodeWords, minCols);
-       if (rows < minRows) {
-         dimension = new int[]{minCols, minRows};
-       }
-     }
+    // Handle case when min values were larger than necessary
+    if (dimension == null) {
+      int rows = calculateNumberOfRows(sourceCodeWords, errorCorrectionCodeWords, currentCol);
+      if (rows < minRows) {
+        dimension = new int[]{minCols, minRows};
+      }
+    }
 
     if (dimension == null) {
       throw new WriterException("Unable to fit message in columns");

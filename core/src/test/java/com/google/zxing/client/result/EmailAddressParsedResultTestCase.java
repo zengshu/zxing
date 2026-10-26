@@ -29,11 +29,47 @@ import org.junit.Test;
 public final class EmailAddressParsedResultTestCase extends Assert {
 
   @Test
+  public void testEmailAddresses() {
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress(null));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress(""));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123.365.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("abc.def.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@abcd.c"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@abcd"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@ab,cd.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@ab#cd.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@ab!#cd.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@ab_cd.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@-abcd.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@abcd-.com"));
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@abcd.c-m"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@abcd.com"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("123@ab-cd.com"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("abc.456@ab-cd.com"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("abc.456@ab-cd.BB-EZ-12.com"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("建設省.456@ab-cd.com"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("abc.Z456@ab-Cd9Z.co"));
+    assertTrue(EmailDoCoMoResultParser.isBasicallyValidEmailAddress("建設省.aZ456@Ab-cd9Z.co"));
+  }
+
+  // A long run of address characters that never completes a valid domain must be rejected
+  // quickly; the previous pattern backtracked super-linearly on such input.
+  @Test(timeout = 5000L)
+  public void testNoCatastrophicBacktracking() {
+    StringBuilder sb = new StringBuilder("x@");
+    for (int i = 0; i < 5000; i++) {
+      sb.append('a');
+    }
+    assertFalse(EmailDoCoMoResultParser.isBasicallyValidEmailAddress(sb.toString()));
+  }
+
+  @Test
   public void testEmailAddress() {
     doTest("srowen@example.org", "srowen@example.org", null, null);
     doTest("mailto:srowen@example.org", "srowen@example.org", null, null);
   }
 
+  
   @Test
   public void testTos() {
     doTest("mailto:srowen@example.org,bob@example.org",
